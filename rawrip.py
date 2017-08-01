@@ -15,17 +15,26 @@ class Application(tk.Frame, object):
         self.pack()
         self.mode = 'BGRA'
         self.create_widgets()
+        root.protocol("WM_DELETE_WINDOW", root.destroy)
+
+    def get_view(self, **kwargs):
+        padding = b'\0'*int(self.offset) * 4
+        height = int(math.floor(len(RAW_DATA) / 4 / self.width))
+        position = int(self.offset_scrollbar.get()[0] * self.height)
+        deletion = (int(position)) * 4 * int(self.width)
+        # print(position)
+        if height > self.winfo_height():
+            height = self.winfo_height()
+        cropped_data = padding + RAW_DATA[deletion:]
+        encoder = 'raw'
+        image = Image.frombytes('RGBA', (self.width, height), cropped_data, encoder, self.mode)
+        return image, position
 
     def get_image(self, **kwargs):
         padding = b'\0'*int(self.offset) * 4
-        deletion = (int(self.position) * 4) * int(self.width)
-        raw_data = open(sys.argv[1], 'rb').read()
-        moved_data = padding + raw_data[deletion:]
-        height = int(math.floor(len(raw_data) / 4 / self.width))
-        # if height > self.winfo_height():
-        #     height = self.winfo_height()
+        self.height = int(math.floor(len(RAW_DATA) / 4 / self.width))
         encoder = 'raw'
-        image = Image.frombytes('RGBA', (self.width, height), moved_data, encoder, self.mode)
+        image = Image.frombytes('RGBA', (self.width, self.height), padding + RAW_DATA, encoder, self.mode)
         return image
 
     def create_widgets(self):
@@ -37,42 +46,62 @@ class Application(tk.Frame, object):
         # self.y_offset_slider['label'] = "Vertical offset"
         # self.y_offset_slider.pack(side='right')
 
-        self.offset_slider = tk.Scale(self, length=800, from_=0, to=1024, orient = tk.HORIZONTAL)
+        self.offset_frame = tk.Frame(self)
+        self.offset_frame.pack()
+
+        self.left_btn = tk.Button(self.offset_frame)
+        self.left_btn['text'] = "Offset -"
+        self.left_btn['command'] = self.dec_offset
+        self.left_btn.pack(side='left')
+
+        self.offset_slider = tk.Scale(self.offset_frame, length=800, from_=0, to=1024, orient = tk.HORIZONTAL)
         self.offset_slider['command'] = self.set_offset
-        self.offset_slider['label'] = "Horizontal offset"
-        self.offset_slider.pack()
+        self.offset_slider['showvalue'] = 0
+        self.offset_slider.bind("<ButtonRelease-1>", self.refresh_image)
+        # self.offset_slider['label'] = "Horizontal offset"
+        self.offset_slider.pack(side='left')
 
-        self.width_slider = tk.Scale(self, length=800, from_=1, to=1024, orient = tk.HORIZONTAL)
+        self.right_btn = tk.Button(self.offset_frame)
+        self.right_btn['text'] = "Offset +"
+        self.right_btn['command'] = self.inc_offset
+        self.right_btn.pack(side='right')
+
+        self.width_frame = tk.Frame(self)
+        self.width_frame.pack()
+
+        self.shrink_btn = tk.Button(self.width_frame)
+        self.shrink_btn['text'] = "Width -"
+        self.shrink_btn['command'] = self.shrink
+        self.shrink_btn.pack(side='left')
+
+        self.width_slider = tk.Scale(self.width_frame, length=800, from_=1, to=1024, orient = tk.HORIZONTAL)
         self.width_slider['command'] = self.set_width
-        self.width_slider['label'] = "Image width"
+        self.width_slider['showvalue'] = 0
+        # self.width_slider['label'] = "Image width"
         self.width_slider.set(self.width)
-        self.width_slider.pack()
+        self.width_slider.bind("<ButtonRelease-1>", self.refresh_image)
+        self.width_slider.pack(side='left')
 
-        self.btn = tk.Button(self)
-        self.btn['text'] = "Width -"
-        self.btn['command'] = self.shrink
-        self.btn.pack(side='top')
-
-        self.btn = tk.Button(self)
-        self.btn['text'] = "Width +"
-        self.btn['command'] = self.grow
-        self.btn.pack(side='left')
+        self.grow_btn = tk.Button(self.width_frame)
+        self.grow_btn['text'] = "Width +"
+        self.grow_btn['command'] = self.grow
+        self.grow_btn.pack(side='left')
 
         # self.label = tk.Label(self, image=self.tkimage)
         # self.label.image = self.tkimage
         # self.label.pack(side = 'bottom', fill='both', expand = 'yes')
 
-        self.label = tk.Canvas(self, width = 600, height = 400) 
+        self.label = tk.Canvas(self, width=600, height=400)
         self.label['background'] = 'black'
-        self.label.create_image(0, 0, anchor = tk.CENTER, image=self.tkimage)
+        self.label.create_image(0, 0, anchor=tk.NW, image=self.tkimage)
 
-        self.offset_scrollbar = tk.Scrollbar(self, orient = tk.VERTICAL)
+        self.offset_scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         self.offset_scrollbar['command'] = self.label.yview
         self.offset_scrollbar.pack(side='right', fill=tk.Y)
 
         self.label['yscrollcommand'] = self.offset_scrollbar.set
         self.label['scrollregion'] = (0,0,600,self.tkimage.height())
-        self.label.pack(side = 'bottom', fill='y', expand = 'yes')
+        self.label.pack( fill='y', expand = 'yes')
 
     def refresh_ui(self):
         self.offset_slider['to'] = int(self.width)
@@ -80,16 +109,30 @@ class Application(tk.Frame, object):
 
     def set_width(self, width):
         self.width = int(width)
-        self.refresh_ui()
-        self.refresh_image()
+        # self.refresh_ui()
+        self.refresh_view()
 
     def set_position(self, position):
         self.position = position
         self.refresh_image()
 
+    def inc_offset(self):
+        if int(self.offset) < self.width:
+            self.offset = int(self.offset) + 1
+            # self.offset_slider.set(self.offset)
+        self.refresh_image()
+
+    def dec_offset(self):
+        if int(self.offset) > 1:
+            self.offset = int(self.offset) - 1
+            # self.offset_slider.set(self.offset)
+        self.refresh_ui()
+        self.refresh_image()
+
     def set_offset(self, offset):
         self.offset = offset
-        self.refresh_image()
+        # self.refresh_ui()
+        self.refresh_view()
 
     def grow(self):
         self.width += 1
@@ -101,11 +144,28 @@ class Application(tk.Frame, object):
         self.width_slider.set(self.width)
         self.refresh_image()
 
-    def refresh_image(self):
-        self.tkimage = ImageTk.PhotoImage(self.get_image())
+    def refresh_view(self):
+        # height = self.label.height
+        view = self.get_view()
+        image = view[0]
+        position = view[1]
+        # self.preview_tkimage = ImageTk.PhotoImage(image)
+        self.tkimage = ImageTk.PhotoImage(image)
+        # self.label.create_image(0, position, anchor = tk.NW, image=self.preview_tkimage)
+        self.label.create_image(0, position, anchor = tk.NW, image=self.tkimage)
+        # self.label.configure(image = self.tkimage)
+        # self.update()
+
+    def refresh_image(self, *args):
+        print(0)
+        image = self.get_image()
+        self.tkimage = ImageTk.PhotoImage(image)
         self.label.create_image(0, 0, anchor = tk.NW, image=self.tkimage)
         # self.label.configure(image = self.tkimage)
-        self.update_idletasks()
+        # self.update()
+        self.refresh_ui()
+
+RAW_DATA = open(sys.argv[1], 'rb').read()
 
 root = tk.Tk()
 app = Application(master=root)
