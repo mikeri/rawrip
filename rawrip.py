@@ -22,7 +22,6 @@ class Application(tk.Frame, object):
         height = int(math.floor(len(RAW_DATA) / 4 / self.width))
         position = int(self.offset_scrollbar.get()[0] * self.height)
         deletion = (int(position)) * 4 * int(self.width)
-        # print(position)
         if height > self.winfo_height():
             height = self.winfo_height()
         cropped_data = padding + RAW_DATA[deletion:]
@@ -38,8 +37,6 @@ class Application(tk.Frame, object):
         return image
 
     def create_widgets(self):
-        self.tkimage = ImageTk.PhotoImage(self.get_image())
-
         # self.y_offset_slider = tk.Scale(self, showvalue=False, from_=1, to=1024)
         # self.y_offset_slider['command'] = self.set_position
         # self.y_offset_slider['length'] = 800
@@ -91,11 +88,32 @@ class Application(tk.Frame, object):
         # self.label.image = self.tkimage
         # self.label.pack(side = 'bottom', fill='both', expand = 'yes')
 
-        self.label = tk.Canvas(self, width=600, height=400)
+        self.main_frame = tk.Frame(self)
+        self.main_frame.pack(fill='x')
+
+        self.left_ctrl = tk.Frame(self.main_frame)
+        self.left_ctrl.pack(side='left', fill='x')
+
+        self.mode_mb = tk.Menubutton(self.left_ctrl)
+        self.mode_mb['text'] = 'Mode'
+        self.mode_mb['relief'] = tk.RAISED
+
+        self.mode_mb.menu = tk.Menu(self.mode_mb, tearoff = 0)
+        self.mode_mb['menu'] = self.mode_mb.menu
+        self.mode_mb.menu.add_command(label='RGBA', command= lambda: self.set_mode('RGBA'))
+        self.mode_mb.menu.add_command(label='BGRA', command= lambda: self.set_mode('BGRA'))
+        self.mode_mb.menu.add_command(label='ARGB', command= lambda: self.set_mode('ARGB'))
+        self.mode_mb.menu.add_command(label='ABGR', command= lambda: self.set_mode('ABGR'))
+        self.mode_mb.pack(padx=10, side='left', fill='x')
+
+        image = self.get_image()
+        self.tkimage = ImageTk.PhotoImage(image)
+
+        self.label = tk.Canvas(self.main_frame, width=600, height=400)
         self.label['background'] = 'black'
         self.label.create_image(0, 0, anchor=tk.NW, image=self.tkimage)
 
-        self.offset_scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        self.offset_scrollbar = tk.Scrollbar(self.main_frame, orient=tk.VERTICAL)
         self.offset_scrollbar['command'] = self.label.yview
         self.offset_scrollbar.pack(side='right', fill=tk.Y)
 
@@ -103,14 +121,23 @@ class Application(tk.Frame, object):
         self.label['scrollregion'] = (0,0,600,self.tkimage.height())
         self.label.pack( fill='y', expand = 'yes')
 
+        self.refresh_image()
+
+    def set_mode(self, mode, *args):
+        self.mode = mode
+        self.refresh_image()
+        pass
+
     def refresh_ui(self):
         self.offset_slider['to'] = int(self.width)
         self.label['scrollregion'] = (0,0,600,self.tkimage.height())
 
     def set_width(self, width):
         self.width = int(width)
-        # self.refresh_ui()
-        self.refresh_view()
+        try:
+            self.refresh_view()
+        except:
+            self.refresh_image()
 
     def set_position(self, position):
         self.position = position
@@ -120,7 +147,8 @@ class Application(tk.Frame, object):
         if int(self.offset) < self.width:
             self.offset = int(self.offset) + 1
             # self.offset_slider.set(self.offset)
-        self.refresh_image()
+            self.update()
+            self.refresh_image()
 
     def dec_offset(self):
         if int(self.offset) > 1:
@@ -137,11 +165,13 @@ class Application(tk.Frame, object):
     def grow(self):
         self.width += 1
         self.width_slider.set(self.width)
+        self.update()
         self.refresh_image()
 
     def shrink(self):
         self.width -= 1
         self.width_slider.set(self.width)
+        self.update()
         self.refresh_image()
 
     def refresh_view(self):
@@ -157,7 +187,6 @@ class Application(tk.Frame, object):
         # self.update()
 
     def refresh_image(self, *args):
-        print(0)
         image = self.get_image()
         self.tkimage = ImageTk.PhotoImage(image)
         self.label.create_image(0, 0, anchor = tk.NW, image=self.tkimage)
